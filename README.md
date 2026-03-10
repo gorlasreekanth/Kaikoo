@@ -1,1 +1,1 @@
-# KaikooStore
+# Kaikoo
