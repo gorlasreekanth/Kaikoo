@@ -1,8 +1,10 @@
 import { GoogleLogin } from '@react-oauth/google'
-import { loginWithGoogle } from '../api/auth'
+import { loginWithGoogle, devLogin } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../components/ui/Toast'
+
+const DEV_BYPASS = import.meta.env.VITE_DEV_BYPASS_AUTH === 'true'
 
 export function LoginPage() {
   const { setAuth } = useAuthStore()
@@ -17,6 +19,16 @@ export function LoginPage() {
       navigate('/')
     } catch {
       toast('Login failed. Please try again.', 'error')
+    }
+  }
+
+  const handleDevLogin = async () => {
+    try {
+      const { access_token, user } = await devLogin()
+      setAuth(access_token, user)
+      navigate('/')
+    } catch {
+      toast('Dev login failed. Is ENVIRONMENT=development set in the backend?', 'error')
     }
   }
 
@@ -37,6 +49,14 @@ export function LoginPage() {
             size="large"
           />
         </div>
+        {DEV_BYPASS && (
+          <button
+            onClick={handleDevLogin}
+            className="mt-4 w-full py-2 rounded-lg border border-dashed border-border text-text-muted text-sm hover:border-accent hover:text-accent transition-colors"
+          >
+            Continue as Dev User
+          </button>
+        )}
       </div>
     </div>
   )

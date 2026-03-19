@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.user import User
@@ -29,3 +30,18 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: User = Depends(get_current_user)):
     return UserOut.model_validate(current_user)
+
+
+@router.post("/dev-login", response_model=AuthResponse)
+async def dev_login(db: AsyncSession = Depends(get_db)):
+    if settings.environment != "development":
+        raise HTTPException(status_code=404, detail="Not found")
+    idinfo = {
+        "sub": "dev-user-001",
+        "email": "dev@kaikoo.local",
+        "name": "Dev User",
+        "picture": None,
+    }
+    user = await upsert_user(db, idinfo)
+    token = create_access_token(str(user.id))
+    return AuthResponse(access_token=token, user=UserOut.model_validate(user))
