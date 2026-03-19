@@ -10,3 +10,8 @@ export async function getMe(): Promise<User> {
   const { data } = await apiClient.get('/auth/me')
   return data
 }
+
+export async function devLogin(): Promise<{ access_token: string; user: User }> {
+  const { data } = await apiClient.post('/auth/dev-login')
+  return data
+}
