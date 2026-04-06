@@ -1,3 +1,4 @@
+import uuid as uuid_lib
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -27,7 +28,11 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    try:
+        uid = uuid_lib.UUID(user_id)
+    except (ValueError, AttributeError):
+        raise credentials_exception
+    result = await db.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
