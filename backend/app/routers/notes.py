@@ -93,8 +93,12 @@ async def create_note(
 
     # Append or create note
     if append_to_id:
+        try:
+            append_uuid = uuid.UUID(append_to_id)
+        except (ValueError, AttributeError):
+            append_uuid = None
         note_result = await db.execute(
-            select(Note).where(Note.id == append_to_id, Note.user_id == current_user.id)
+            select(Note).where(Note.id == append_uuid, Note.user_id == current_user.id)
         )
         existing_note = note_result.scalar_one_or_none()
         if existing_note:
@@ -176,7 +180,10 @@ async def list_notes(
 ):
     query = select(Note).where(Note.user_id == current_user.id)
     if category_id:
-        query = query.where(Note.category_id == category_id)
+        try:
+            query = query.where(Note.category_id == uuid.UUID(category_id))
+        except (ValueError, AttributeError):
+            pass
     query = query.order_by(Note.created_at.desc())
 
     count_query = select(func.count()).select_from(query.subquery())
@@ -189,7 +196,7 @@ async def list_notes(
     # Load categories
     for note in notes:
         if note.category_id:
-            cat_result = await db.execute(select(Category).where(Category.id == note.category_id))
+            cat_result = await db.execute(select(Category).where(Category.id == uuid.UUID(str(note.category_id))))
             note.category = cat_result.scalar_one_or_none()
 
     return PaginatedNotes(
@@ -200,18 +207,26 @@ async def list_notes(
     )
 
 
+def _parse_uuid(value: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        return None
+
+
 @router.get("/{note_id}", response_model=NoteOut)
 async def get_note(
     note_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Note).where(Note.id == note_id, Note.user_id == current_user.id))
+    uid = _parse_uuid(note_id)
+    result = await db.execute(select(Note).where(Note.id == uid, Note.user_id == current_user.id))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     if note.category_id:
-        cat_result = await db.execute(select(Category).where(Category.id == note.category_id))
+        cat_result = await db.execute(select(Category).where(Category.id == uuid.UUID(str(note.category_id))))
         note.category = cat_result.scalar_one_or_none()
     return NoteOut.model_validate(note)
 
@@ -223,13 +238,17 @@ async def update_note(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Note).where(Note.id == note_id, Note.user_id == current_user.id))
+    uid = _parse_uuid(note_id)
+    result = await db.execute(select(Note).where(Note.id == uid, Note.user_id == current_user.id))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     note.content = body.content
     await db.commit()
     await db.refresh(note)
+    if note.category_id:
+        cat_result = await db.execute(select(Category).where(Category.id == uuid.UUID(str(note.category_id))))
+        note.category = cat_result.scalar_one_or_none()
     return NoteOut.model_validate(note)
 
 
@@ -239,12 +258,13 @@ async def delete_note(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Note).where(Note.id == note_id, Note.user_id == current_user.id))
+    uid = _parse_uuid(note_id)
+    result = await db.execute(select(Note).where(Note.id == uid, Note.user_id == current_user.id))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     if note.category_id:
-        cat_result = await db.execute(select(Category).where(Category.id == note.category_id))
+        cat_result = await db.execute(select(Category).where(Category.id == uuid.UUID(str(note.category_id))))
         cat = cat_result.scalar_one_or_none()
         if cat and cat.note_count > 0:
             cat.note_count -= 1
