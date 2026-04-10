@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { CheckCircle, XCircle, X } from 'lucide-react'
 import { cn } from '../../utils/cn'
