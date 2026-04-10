@@ -16,10 +16,6 @@ export function createTestQueryClient() {
   })
 }
 
-interface WrapperProps {
-  children: React.ReactNode
-  initialEntries?: string[]
-}
 
 export function renderWithProviders(
   ui: React.ReactElement,
