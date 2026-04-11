@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 
 # Import all models so Base knows about every table
 from app.models import user, note, category, integration  # noqa: F401
-from app.database import Base, get_db
+from app.database import Base
+from app.deps import get_db, get_all_regions
 from app.main import app
 from app.models.user import User
 from app.services.auth_service import create_access_token
@@ -68,12 +69,15 @@ async def db(engine):
 
 
 @pytest.fixture
-async def client(db):
+async def client(db, engine):
     """HTTPX async client wired to the FastAPI app with the test DB."""
     async def _override_db():
         yield db
 
+    test_factory = async_sessionmaker(engine, expire_on_commit=False)
+
     app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_all_regions] = lambda: {"default": test_factory}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
@@ -95,5 +99,5 @@ async def test_user(db) -> User:
 
 @pytest.fixture
 def auth_headers(test_user) -> dict:
-    token = create_access_token(str(test_user.id))
+    token = create_access_token(str(test_user.id), region="default")
     return {"Authorization": f"Bearer {token}"}

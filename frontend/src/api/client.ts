@@ -4,7 +4,10 @@ import { useAuthStore } from '../store/authStore'
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+  },
 })
 
 apiClient.interceptors.request.use((config) => {
