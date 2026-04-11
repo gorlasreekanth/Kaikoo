@@ -18,6 +18,12 @@ async def verify_google_token(id_token_str: str) -> dict:
     return idinfo
 
 
+async def find_user_by_google_id(db: AsyncSession, google_id: str) -> User | None:
+    """Look up a user by Google ID without creating or modifying anything."""
+    result = await db.execute(select(User).where(User.google_id == google_id))
+    return result.scalar_one_or_none()
+
+
 async def upsert_user(db: AsyncSession, idinfo: dict) -> User:
     google_id = idinfo["sub"]
     result = await db.execute(select(User).where(User.google_id == google_id))
@@ -40,10 +46,10 @@ async def upsert_user(db: AsyncSession, idinfo: dict) -> User:
     return user
 
 
-def create_access_token(user_id: str) -> str:
+def create_access_token(user_id: str, region: str = "default") -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     return jwt.encode(
-        {"sub": str(user_id), "exp": expire},
+        {"sub": str(user_id), "region": region, "exp": expire},
         settings.secret_key,
         algorithm=settings.jwt_algorithm,
     )
