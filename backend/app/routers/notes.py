@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.note import Note
 from app.models.category import Category
 from app.models.integration import Integration
+from app.models.llm_settings import LLMSettings
 from app.schemas.note import NoteOut, NoteCreateResponse, PaginatedNotes, NoteAction, CalendarPayload, EmailPayload
 from app.schemas.category import CategoryOut
 from app.services import claude_service, notion_service
@@ -78,9 +79,15 @@ async def create_note(
             ],
         })
 
-    # Call Claude
+    # Load user's LLM settings
+    llm_result = await db.execute(
+        select(LLMSettings).where(LLMSettings.user_id == current_user.id)
+    )
+    user_llm = llm_result.scalar_one_or_none()
+
+    # Call LLM
     try:
-        claude_result = await claude_service.process_note(body.content, categories_context)
+        claude_result = await claude_service.process_note(body.content, categories_context, user_llm_settings=user_llm)
     except Exception:
         claude_result = {"category": "General", "is_new_category": True, "append_to_note_id": None, "intent": None}
 

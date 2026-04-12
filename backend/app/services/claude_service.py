@@ -1,12 +1,6 @@
 import json
 from datetime import date
-from openai import AsyncOpenAI
-from app.config import settings
-
-client = AsyncOpenAI(
-    api_key=settings.openrouter_api_key,
-    base_url="https://openrouter.ai/api/v1",
-)
+from app.services.llm_service import chat
 
 PROCESS_NOTE_SYSTEM = """You are Kaikoo, a personal assistant that processes short notes.
 You always respond with valid JSON only — no prose, no markdown fences.
@@ -49,7 +43,7 @@ Rules:
 - If intent is unclear, set intent to null."""
 
 
-async def process_note(content: str, categories_context: list[dict]) -> dict:
+async def process_note(content: str, categories_context: list[dict], user_llm_settings=None) -> dict:
     """
     Returns dict with keys: category, is_new_category, append_to_note_id, intent
     """
@@ -60,16 +54,14 @@ async def process_note(content: str, categories_context: list[dict]) -> dict:
         today_date=date.today().isoformat(),
     )
 
-    response = await client.chat.completions.create(
-        model=settings.openrouter_note_model,
+    raw = await chat(
+        system=PROCESS_NOTE_SYSTEM,
+        user_message=user_msg,
+        role="fast",
         max_tokens=1024,
-        messages=[
-            {"role": "system", "content": PROCESS_NOTE_SYSTEM},
-            {"role": "user", "content": user_msg},
-        ],
+        user_llm_settings=user_llm_settings,
     )
 
-    raw = response.choices[0].message.content.strip()
     # Strip markdown fences if model adds them
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -90,7 +82,7 @@ NOTES (oldest first):
 Write a summary of 2-4 paragraphs."""
 
 
-async def summarize_category(category_name: str, notes: list[dict]) -> str:
+async def summarize_category(category_name: str, notes: list[dict], user_llm_settings=None) -> str:
     if not notes:
         return "No notes to summarize."
 
@@ -106,13 +98,10 @@ async def summarize_category(category_name: str, notes: list[dict]) -> str:
         notes_text=notes_text,
     )
 
-    response = await client.chat.completions.create(
-        model=settings.openrouter_summary_model,
+    return await chat(
+        system=SUMMARIZE_SYSTEM,
+        user_message=user_msg,
+        role="quality",
         max_tokens=2048,
-        messages=[
-            {"role": "system", "content": SUMMARIZE_SYSTEM},
-            {"role": "user", "content": user_msg},
-        ],
+        user_llm_settings=user_llm_settings,
     )
-
-    return response.choices[0].message.content.strip()
