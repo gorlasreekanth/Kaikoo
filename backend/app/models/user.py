@@ -19,8 +19,10 @@ class User(Base):
     categories: Mapped[list["Category"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     notes: Mapped[list["Note"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     integrations: Mapped[list["Integration"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    llm_settings: Mapped["LLMSettings | None"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
 
 
 from app.models.category import Category  # noqa: E402
 from app.models.note import Note  # noqa: E402
 from app.models.integration import Integration  # noqa: E402
+from app.models.llm_settings import LLMSettings  # noqa: E402

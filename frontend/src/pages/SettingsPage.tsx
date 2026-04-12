@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calendar, Mail, BookOpen } from 'lucide-react'
 import { IntegrationCard } from '../components/integrations/IntegrationCard'
+import { LLMSettingsCard } from '../components/integrations/LLMSettingsCard'
 import {
   getIntegrations,
   getCalendarAuthUrl,
@@ -52,6 +53,7 @@ export function SettingsPage() {
       </div>
 
       <div className="space-y-3">
+        <LLMSettingsCard />
         <IntegrationCard
           icon={Calendar}
           name="Google Calendar"

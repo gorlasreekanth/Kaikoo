@@ -54,10 +54,11 @@ class Settings(BaseSettings):
     google_redirect_uri_calendar: str = "http://localhost:8000/api/v1/calendar/callback"
     google_redirect_uri_gmail: str = "http://localhost:8000/api/v1/gmail/callback"
 
-    # OpenRouter
+    # LLM — OpenRouter is default, users can BYOL via llm_settings
     openrouter_api_key: str = ""
     openrouter_note_model: str = "meta-llama/llama-3.3-8b-instruct:free"
     openrouter_summary_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    anthropic_api_key: str = ""  # legacy fallback
 
     # Notion
     notion_client_id: str = ""

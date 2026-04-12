@@ -6,6 +6,7 @@ from app.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.category import Category
 from app.models.note import Note
+from app.models.llm_settings import LLMSettings
 from app.services import claude_service
 
 router = APIRouter(prefix="/summaries", tags=["summaries"])
@@ -39,7 +40,12 @@ async def get_summary(
         for n in notes
     ]
 
-    summary_text = await claude_service.summarize_category(category.name, notes_data)
+    llm_result = await db.execute(
+        select(LLMSettings).where(LLMSettings.user_id == current_user.id)
+    )
+    user_llm = llm_result.scalar_one_or_none()
+
+    summary_text = await claude_service.summarize_category(category.name, notes_data, user_llm_settings=user_llm)
 
     return {
         "summary": summary_text,
