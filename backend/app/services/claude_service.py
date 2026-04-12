@@ -1,9 +1,12 @@
 import json
 from datetime import date
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 from app.config import settings
 
-client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+client = AsyncOpenAI(
+    api_key=settings.openrouter_api_key,
+    base_url="https://openrouter.ai/api/v1",
+)
 
 PROCESS_NOTE_SYSTEM = """You are Kaikoo, a personal assistant that processes short notes.
 You always respond with valid JSON only — no prose, no markdown fences.
@@ -57,14 +60,16 @@ async def process_note(content: str, categories_context: list[dict]) -> dict:
         today_date=date.today().isoformat(),
     )
 
-    response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+    response = await client.chat.completions.create(
+        model=settings.openrouter_note_model,
         max_tokens=1024,
-        system=PROCESS_NOTE_SYSTEM,
-        messages=[{"role": "user", "content": user_msg}],
+        messages=[
+            {"role": "system", "content": PROCESS_NOTE_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
     )
 
-    raw = response.content[0].text.strip()
+    raw = response.choices[0].message.content.strip()
     # Strip markdown fences if model adds them
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -101,11 +106,13 @@ async def summarize_category(category_name: str, notes: list[dict]) -> str:
         notes_text=notes_text,
     )
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
+    response = await client.chat.completions.create(
+        model=settings.openrouter_summary_model,
         max_tokens=2048,
-        system=SUMMARIZE_SYSTEM,
-        messages=[{"role": "user", "content": user_msg}],
+        messages=[
+            {"role": "system", "content": SUMMARIZE_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
     )
 
-    return response.content[0].text.strip()
+    return response.choices[0].message.content.strip()
