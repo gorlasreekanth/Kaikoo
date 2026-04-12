@@ -1,17 +1,19 @@
-"""Unit tests for claude_service with mocked Anthropic client."""
+"""Unit tests for claude_service with mocked OpenRouter client."""
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from app.services import claude_service
 
 
 def _make_response(text: str):
-    """Build a minimal mock that mimics Anthropic's message response shape."""
-    content_block = MagicMock()
-    content_block.text = text
-    msg = MagicMock()
-    msg.content = [content_block]
-    return msg
+    """Build a minimal mock that mimics OpenAI chat completion response shape."""
+    message = MagicMock()
+    message.content = text
+    choice = MagicMock()
+    choice.message = message
+    response = MagicMock()
+    response.choices = [choice]
+    return response
 
 
 # ── process_note ─────────────────────────────────────────────────────────────
@@ -24,7 +26,7 @@ async def test_process_note_basic_categorization(mocker):
         "intent": None,
     }
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Finish the Q3 report", [])
     assert result["category"] == "Work"
@@ -41,7 +43,7 @@ async def test_process_note_new_category(mocker):
         "intent": None,
     }
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Fix the leaky tap in the kitchen", [])
     assert result["is_new_category"] is True
@@ -65,7 +67,7 @@ async def test_process_note_calendar_intent(mocker):
         },
     }
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Schedule team standup tomorrow 9am", [])
     assert result["intent"]["type"] == "calendar"
@@ -88,7 +90,7 @@ async def test_process_note_email_intent(mocker):
         },
     }
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Email Alice about project update", [])
     assert result["intent"]["type"] == "email"
@@ -98,7 +100,7 @@ async def test_process_note_email_intent(mocker):
 async def test_process_note_strips_markdown_fences(mocker):
     raw = "```json\n" + json.dumps({"category": "Ideas", "is_new_category": True, "append_to_note_id": None, "intent": None}) + "\n```"
     mock_create = AsyncMock(return_value=_make_response(raw))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Buy a whiteboard", [])
     assert result["category"] == "Ideas"
@@ -108,13 +110,14 @@ async def test_process_note_with_categories_context(mocker):
     """Verifies that categories context is passed through to the API call."""
     payload = {"category": "Work", "is_new_category": False, "append_to_note_id": None, "intent": None}
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     categories_context = [{"id": "cat-1", "name": "Work", "recent_notes": [{"id": "n-1", "snippet": "previous note"}]}]
     await claude_service.process_note("Follow-up on the report", categories_context)
 
     call_kwargs = mock_create.call_args[1]
-    assert "Work" in call_kwargs["messages"][0]["content"]
+    # Context appears in the user message (index 1)
+    assert "Work" in call_kwargs["messages"][1]["content"]
 
 
 async def test_process_note_append_to_existing(mocker):
@@ -126,7 +129,7 @@ async def test_process_note_append_to_existing(mocker):
         "intent": None,
     }
     mock_create = AsyncMock(return_value=_make_response(json.dumps(payload)))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     result = await claude_service.process_note("Additional details about the report", [])
     assert result["append_to_note_id"] == note_id
@@ -136,7 +139,7 @@ async def test_process_note_append_to_existing(mocker):
 
 async def test_summarize_category_returns_string(mocker):
     mock_create = AsyncMock(return_value=_make_response("This is a summary of your work notes."))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     notes = [{"content": "Finished report", "created_at": "2026-04-01T10:00:00"}]
     result = await claude_service.summarize_category("Work", notes)
@@ -149,10 +152,10 @@ async def test_summarize_category_empty_notes():
     assert result == "No notes to summarize."
 
 
-async def test_summarize_category_uses_sonnet(mocker):
+async def test_summarize_category_uses_summary_model(mocker):
     mock_create = AsyncMock(return_value=_make_response("Summary text here."))
-    mocker.patch.object(claude_service.client.messages, "create", mock_create)
+    mocker.patch.object(claude_service.client.chat.completions, "create", mock_create)
 
     await claude_service.summarize_category("Work", [{"content": "Note", "created_at": "2026-04-01"}])
     call_kwargs = mock_create.call_args[1]
-    assert "sonnet" in call_kwargs["model"]
+    assert call_kwargs["model"] == claude_service.settings.openrouter_summary_model
